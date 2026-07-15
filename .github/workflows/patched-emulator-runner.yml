@@ -1,0 +1,46 @@
+name: Patched Emulator Runner
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '22,52 * * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  patched:
+    name: Patched API ${{ matrix.api-level }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [21, 23, 26, 29, 31, 33, 35]
+
+    steps:
+      - name: Checkout patched action
+        uses: actions/checkout@v4
+        with:
+          repository: jpnurmi/android-emulator-runner
+          ref: feat/emulator-startup-retries
+          path: android-emulator-runner
+
+      - name: Install patched action dependencies
+        working-directory: android-emulator-runner
+        run: npm ci
+
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Start emulator with patched action
+        uses: ./android-emulator-runner
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          emulator-startup-retries: 1
+          script: echo hello from patched action API ${{ matrix.api-level }}
